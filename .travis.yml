@@ -1,3 +1,9 @@
+os: linux
+language: php
+
+# services:
+#   - docker
+
 before_install:
   # https://github.com/containers/libpod/blob/master/install.md#ubuntu
   - sudo apt-get update -qq
@@ -19,22 +25,16 @@ before_install:
   - ls -1 /etc/containers/registries.conf || true
   - sudo mkdir -p /etc/containers
   - echo -e "[registries.search]\nregistries = ['docker.io', 'quay.io']" | sudo tee /etc/containers/registries.conf
-matrix:
-  include:
-    - name: "1. podman by regular user"
-      script:
-        - podman run --rm -t fedora uname -m
-    - name: "2. podman-dockerfile by regular user"
-      install:
-        - podman build --rm -t my-fedora .
-      script:
-        - podman run --rm -t my-fedora uname -m
-    - name: "3. podman by root"
-      script:
-        - sudo podman run --rm -t fedora uname -m
-    - name: "4. quay.io"
-      script:
-        # Images on quay.io.
-        # https://quay.io/repository/junaruga/qemu-user-static
-        - podman pull junaruga/qemu-user-static:aarch64
-        - podman run junaruga/qemu-user-static:aarch64 /usr/bin/qemu-aarch64-static -help
+
+before_script:
+  - podman build --no-cache -t outrise/webapp_podman:${TRAVIS_COMMIT} .
+  # - docker run ${TRAVIS_REPO_SLUG}:${TRAVIS_COMMIT} /go/src/github.com/kainlite/whatismyip-go/whatismyip-go.test
+  - podman run -d -p 127.0.0.1:80:80 outrise/webapp_podman:${TRAVIS_COMMIT}
+  - podman ps -a
+
+script:
+  - curl 127.0.0.1:80
+  - echo "$DOCKER_PASSWORD" | podman login -u "$DOCKER_USERNAME" --password-stdin
+  - podman push outrise/webapp_podman:${TRAVIS_COMMIT}
+
+notifications: true
